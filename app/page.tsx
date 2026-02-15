@@ -162,6 +162,7 @@ export default function Home() {
       target?.tagName === "INPUT" ||
       target?.tagName === "TEXTAREA" ||
       target?.isContentEditable;
+    const isListNavigationKey = e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter";
 
     if (isCommandPaletteShortcut) {
       e.preventDefault();
@@ -186,8 +187,9 @@ export default function Home() {
     }
 
     const shouldHandleListNavigation = mode === "search" || isFeatureListMode;
+    const allowInputNavigation = shouldHandleListNavigation && isListNavigationKey && !isByokOpen;
 
-    if (isTextInput || !shouldHandleListNavigation || activeCollectionLength === 0) {
+    if ((isTextInput && !allowInputNavigation) || !shouldHandleListNavigation || activeCollectionLength === 0) {
       return;
     }
 
@@ -218,6 +220,7 @@ export default function Home() {
     filteredFeatures,
     filteredMenuItems,
     isFeatureListMode,
+    isByokOpen,
     mode,
     openMode,
     safeActiveIndex,
@@ -300,14 +303,15 @@ export default function Home() {
                   openMode(item.id);
                 }}
                 className={[
-                  "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition sm:px-3",
+                  "inline-flex shrink-0 items-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-medium transition sm:gap-1.5 sm:px-3",
                   mode === item.id
                     ? "border-primary/45 bg-primary/18 text-foreground shadow-[0_8px_18px_rgba(44,191,112,0.22)]"
                     : "border-border bg-card/85 text-muted-foreground hover:text-foreground",
                 ].join(" ")}
+                aria-label={item.label}
               >
                 {item.icon}
-                <span>{item.label}</span>
+                <span className="hidden sm:inline">{item.label}</span>
               </button>
             ))}
           </nav>
@@ -317,7 +321,7 @@ export default function Home() {
               type="button"
               onClick={() => setIsByokOpen((prev) => !prev)}
               className={[
-                "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition sm:px-3",
+                "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-2.5 py-1.5 text-xs font-medium transition sm:px-3",
                 openAIApiKey
                   ? "border-primary/45 bg-primary/18 text-foreground"
                   : "border-border bg-card/85 text-muted-foreground hover:text-foreground",
