@@ -8,6 +8,7 @@ export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
     try {
+        const requestApiKey = req.headers.get("x-openai-api-key")?.trim() || undefined;
         const formData = await req.formData();
         const maybeFile = formData.get("file");
         if (!(maybeFile instanceof File)) {
@@ -77,10 +78,16 @@ export async function POST(req: NextRequest) {
 
         // Store in Pinecone
         try {
-            const vectorStore = await getVectorStore();
+            const vectorStore = await getVectorStore(requestApiKey);
             await vectorStore.addDocuments(docs);
         } catch (e) {
             console.error("Vector store error:", e);
+            if (e instanceof Error && e.message.includes("OPENAI_API_KEY")) {
+                return NextResponse.json(
+                    { error: "OpenAI key required. Set BYOK in the app or configure OPENAI_API_KEY on the server." },
+                    { status: 400 }
+                );
+            }
             return NextResponse.json(
                 { error: "Failed to store embeddings. Check Pinecone configuration." },
                 { status: 500 }

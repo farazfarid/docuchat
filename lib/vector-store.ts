@@ -12,18 +12,24 @@ const pinecone = new Pinecone({
 
 const indexName = process.env.PINECONE_INDEX || "docuchat-index";
 const namespace = process.env.PINECONE_NAMESPACE;
-let vectorStorePromise: Promise<PineconeStore> | null = null;
+let cachedDimension: number | undefined;
 
 const getConfiguredEmbeddingDimension = async (): Promise<number | undefined> => {
+    if (cachedDimension) {
+        return cachedDimension;
+    }
+
     const envDimension = Number(process.env.OPENAI_EMBEDDING_DIMENSION);
     if (Number.isFinite(envDimension) && envDimension > 0) {
-        return envDimension;
+        cachedDimension = envDimension;
+        return cachedDimension;
     }
 
     try {
         const description = await pinecone.describeIndex(indexName);
         if (typeof description.dimension === "number" && description.dimension > 0) {
-            return description.dimension;
+            cachedDimension = description.dimension;
+            return cachedDimension;
         }
     } catch (error) {
         console.warn("Failed to read Pinecone index dimension; using default embedding size.", error);
@@ -32,21 +38,13 @@ const getConfiguredEmbeddingDimension = async (): Promise<number | undefined> =>
     return undefined;
 };
 
-export const getVectorStore = async () => {
-    if (vectorStorePromise) {
-        return vectorStorePromise;
-    }
+export const getVectorStore = async (apiKey?: string) => {
+    const index = pinecone.Index(indexName);
+    const dimension = await getConfiguredEmbeddingDimension();
+    const embeddings = getEmbeddings(dimension, apiKey);
 
-    vectorStorePromise = (async () => {
-        const index = pinecone.Index(indexName);
-        const dimension = await getConfiguredEmbeddingDimension();
-        const embeddings = getEmbeddings(dimension);
-
-        return PineconeStore.fromExistingIndex(embeddings, {
-            pineconeIndex: index,
-            ...(namespace ? { namespace } : {}),
-        });
-    })();
-
-    return vectorStorePromise;
+    return PineconeStore.fromExistingIndex(embeddings, {
+        pineconeIndex: index,
+        ...(namespace ? { namespace } : {}),
+    });
 };

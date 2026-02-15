@@ -8,7 +8,7 @@ import { RaycastInput } from "@/components/ui/raycast-input";
 import { RaycastListItem } from "@/components/ui/raycast-list";
 import { UploadZone } from "@/components/upload-zone";
 import { ChatInterface } from "@/components/chat-interface";
-import { MessageSquare, Search, Sparkles, Upload } from "lucide-react";
+import { KeyRound, MessageSquare, Search, Sparkles, Upload } from "lucide-react";
 
 type Mode = "search" | "chat" | "upload" | "features";
 
@@ -30,36 +30,48 @@ interface MenuItem {
 
 const featuresList: Feature[] = [
   {
-    title: "Vector Embeddings & Semantic Search",
-    shortDesc: "Powered by Pinecone",
-    date: "Nov 2024",
+    title: "Enterprise Semantic Search",
+    shortDesc: "Pinecone on AWS (us-east-1)",
+    date: "Feb 2026",
     description:
-      "High-dimensional vector embeddings understand semantic meaning in your docs, not just exact keyword matching.",
+      "DocuChat turns long documents into an instant, searchable knowledge layer so users find answers in seconds.",
     details: [
-      { title: "OpenAI Embeddings", content: "1536-dimensional vectors using the text-embedding-3-small model." },
-      { title: "Pinecone Index", content: "Serverless vector database for low-latency retrieval." },
+      { title: "Model + Hosting", content: "Search is powered by Pinecone index infrastructure hosted on AWS us-east-1." },
+      { title: "Meaning-Based Matching", content: "Finds relevant passages even when users ask in different wording from the original text." },
+      { title: "Reliable Speed", content: "Built for fast retrieval so chat responses feel immediate even with larger document sets." },
+      { title: "Scalable by Design", content: "On-demand capacity supports growth from personal docs to team knowledge bases." },
+      { title: "Best Use Cases", content: "Knowledge assistants, internal help desks, onboarding hubs, and searchable policy libraries." },
+      { title: "Business Value", content: "Reduces manual search time and increases answer quality for end users." },
     ],
   },
   {
-    title: "Real-time OCR Engine",
-    shortDesc: "Tesseract.js integration",
-    date: "Oct 2024",
+    title: "Embedding Intelligence",
+    shortDesc: "llama-text-embed-v2 (NVIDIA-hosted)",
+    date: "Feb 2026",
     description:
-      "Upload scanned PDFs or images and extract text in real time with an optimized OCR pipeline.",
+      "Text is transformed into semantic vectors so the system understands intent, context, and topic similarity at a deeper level.",
     details: [
-      { title: "PDF Parsing", content: "Structure-aware parsing for dense document layouts." },
-      { title: "Image Support", content: "Drag-and-drop support for PNG and JPG input." },
+      { title: "Model + Hosting", content: "llama-text-embed-v2 hosted by NVIDIA through Pinecone Inference." },
+      { title: "Higher Recall", content: "Improves retrieval quality by capturing concepts, not just exact word overlap." },
+      { title: "Better Grounding", content: "Feeds cleaner context into the chat model so answers are more accurate and specific." },
+      { title: "Flexible Content", content: "Works across resumes, product docs, SOPs, support notes, and research summaries." },
+      { title: "Other Product Uses", content: "FAQ automation, recommendation engines, duplicate detection, and smart categorization." },
+      { title: "Business Value", content: "Delivers stronger answer relevance and reduces hallucinations in downstream chat." },
     ],
   },
   {
-    title: "Contextual AI Chat",
-    shortDesc: "GPT-4 Turbo",
-    date: "Sep 2024",
+    title: "AI Conversation Layer",
+    shortDesc: "OpenAI GPT-4o family",
+    date: "Feb 2026",
     description:
-      "Chat naturally with your documents and keep context across prompts for grounded answers.",
+      "A polished chat experience built on your indexed knowledge, designed for fast, trustworthy answers and premium UX.",
     details: [
-      { title: "Memory", content: "Conversation history stays in the active prompt window." },
-      { title: "Citations", content: "Responses stay grounded in specific document chunks." },
+      { title: "Model + Hosting", content: "OpenAI GPT-4o family (default: gpt-4o-mini, configurable to gpt-4o)." },
+      { title: "Grounded Responses", content: "Answers are tied to retrieved context and paired with a dedicated sources panel." },
+      { title: "BYOK Ready", content: "Users can bring their own OpenAI key and keep control of usage." },
+      { title: "Smooth Experience", content: "Minimal interface, animated source sidebar, and mobile-optimized chat workflow." },
+      { title: "Try This Prompt", content: "Ask the chat about Faraz!" },
+      { title: "Great for", content: "Resume storytelling, interview preparation, portfolio walkthroughs, and customer-facing knowledge demos." },
     ],
   },
 ];
@@ -95,12 +107,20 @@ const floatingNavItems: Array<{ id: Mode; label: string; icon: ReactNode }> = [
   { id: "features", label: "Features", icon: <Sparkles className="h-3.5 w-3.5" /> },
 ];
 
+const BYOK_STORAGE_KEY = "docuchat_openai_api_key";
+
 export default function Home() {
-  const [activeDocument, setActiveDocument] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("search");
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const [activeFeature, setActiveFeature] = useState<Feature | null>(null);
+  const [openAIApiKey, setOpenAIApiKey] = useState<string | null>(() =>
+    typeof window === "undefined" ? null : window.localStorage.getItem(BYOK_STORAGE_KEY)
+  );
+  const [apiKeyDraft, setApiKeyDraft] = useState(() =>
+    typeof window === "undefined" ? "" : window.localStorage.getItem(BYOK_STORAGE_KEY) ?? ""
+  );
+  const [isByokOpen, setIsByokOpen] = useState(false);
 
   const filteredMenuItems = useMemo(() => {
     if (!query) return menuItems;
@@ -208,6 +228,34 @@ export default function Home() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
+  const saveByokKey = useCallback(() => {
+    const trimmedKey = apiKeyDraft.trim();
+    if (!trimmedKey) {
+      window.localStorage.removeItem(BYOK_STORAGE_KEY);
+      setOpenAIApiKey(null);
+      setApiKeyDraft("");
+      setIsByokOpen(false);
+      return;
+    }
+
+    window.localStorage.setItem(BYOK_STORAGE_KEY, trimmedKey);
+    setOpenAIApiKey(trimmedKey);
+    setIsByokOpen(false);
+  }, [apiKeyDraft]);
+
+  const clearByokKey = useCallback(() => {
+    window.localStorage.removeItem(BYOK_STORAGE_KEY);
+    setOpenAIApiKey(null);
+    setApiKeyDraft("");
+    setIsByokOpen(false);
+  }, []);
+
+  const maskedByokLabel = useMemo(() => {
+    if (!openAIApiKey) return "No key";
+    if (openAIApiKey.length < 12) return "Saved";
+    return `${openAIApiKey.slice(0, 7)}...${openAIApiKey.slice(-4)}`;
+  }, [openAIApiKey]);
+
   const actions = mode === "search"
     ? [
       { label: "Open", shortcut: ["↵"], primary: true },
@@ -263,17 +311,68 @@ export default function Home() {
               </button>
             ))}
           </nav>
+
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsByokOpen((prev) => !prev)}
+              className={[
+                "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition sm:px-3",
+                openAIApiKey
+                  ? "border-primary/45 bg-primary/18 text-foreground"
+                  : "border-border bg-card/85 text-muted-foreground hover:text-foreground",
+              ].join(" ")}
+            >
+              <KeyRound className="h-3.5 w-3.5" />
+              <span>BYOK</span>
+            </button>
+
+            {isByokOpen && (
+              <div className="absolute right-0 top-[calc(100%+0.45rem)] z-30 w-[min(90vw,320px)] rounded-xl border border-border bg-card/95 p-3 shadow-[0_16px_40px_rgba(0,0,0,0.45)] backdrop-blur">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                  OpenAI Key
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Saved in local storage for this browser.
+                </p>
+                <input
+                  type="password"
+                  value={apiKeyDraft}
+                  onChange={(e) => setApiKeyDraft(e.target.value)}
+                  placeholder="sk-..."
+                  className="mt-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground outline-none focus:border-primary/60"
+                />
+                <p className="mt-1 truncate text-[10px] text-muted-foreground">
+                  Status: {maskedByokLabel}
+                </p>
+                <div className="mt-3 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={clearByokKey}
+                    className="rounded-md border border-border bg-card px-2.5 py-1 text-[11px] text-muted-foreground hover:text-foreground"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    onClick={saveByokKey}
+                    className="rounded-md border border-primary/50 bg-primary/18 px-2.5 py-1 text-[11px] font-medium text-foreground"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
       <CommandPalette>
         <div className="flex items-center gap-2 border-b soft-divider bg-transparent px-4 sm:px-6">
-          {mode !== "chat" && (
+          {mode == "search" && (
             <RaycastInput
               placeholder={
-                mode === "features"
-                  ? "Search features..."
-                  : "Search commands..."
+                "Search commands..."
               }
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -284,16 +383,20 @@ export default function Home() {
               <span className="rounded-md border border-primary/30 bg-primary/15 px-2.5 py-1 text-xs font-semibold tracking-[0.06em] text-primary">
                 CHAT
               </span>
-              <span className="flex-1 truncate text-sm text-muted-foreground">
-                {activeDocument || "No document loaded"}
+            </div>
+          )}
+          {mode === "upload" && (
+            <div className="flex h-16 w-full items-center gap-2 text-foreground sm:h-[68px] sm:gap-3">
+              <span className="rounded-md border border-primary/30 bg-primary/15 px-2.5 py-1 text-xs font-semibold tracking-[0.06em] text-primary">
+                UPLOAD
               </span>
-              <button
-                type="button"
-                onClick={() => openMode("search")}
-                className="rounded-md border border-border bg-card/88 px-2.5 py-1 text-xs text-muted-foreground transition hover:text-foreground"
-              >
-                Back
-              </button>
+            </div>
+          )}
+          {mode === "features" && (
+            <div className="flex h-16 w-full items-center gap-2 text-foreground sm:h-[68px] sm:gap-3">
+              <span className="rounded-md border border-primary/30 bg-primary/15 px-2.5 py-1 text-xs font-semibold tracking-[0.06em] text-primary">
+                FEATURES
+              </span>
             </div>
           )}
         </div>
@@ -338,8 +441,8 @@ export default function Home() {
                   <p className="mt-1 text-sm text-muted-foreground">One file at a time. Extraction and indexing starts instantly.</p>
                 </div>
                 <UploadZone
-                  onUploadComplete={(filename) => {
-                    setActiveDocument(filename);
+                  openAIApiKey={openAIApiKey}
+                  onUploadComplete={() => {
                     openMode("chat");
                   }}
                 />
@@ -349,7 +452,7 @@ export default function Home() {
 
           {mode === "chat" && (
             <div className="flex h-full flex-col">
-              <ChatInterface />
+              <ChatInterface openAIApiKey={openAIApiKey} />
             </div>
           )}
 

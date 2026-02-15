@@ -17,7 +17,11 @@ interface Message {
     sources?: SourceCitation[];
 }
 
-export function ChatInterface() {
+interface ChatInterfaceProps {
+    openAIApiKey?: string | null;
+}
+
+export function ChatInterface({ openAIApiKey }: ChatInterfaceProps) {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
@@ -53,13 +57,24 @@ export function ChatInterface() {
         setIsLoading(true);
 
         try {
+            const headers: HeadersInit = { "Content-Type": "application/json" };
+            if (openAIApiKey) {
+                headers["x-openai-api-key"] = openAIApiKey;
+            }
+
             const response = await fetch("/api/chat", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers,
                 body: JSON.stringify({ message: userMessage }),
             });
 
-            if (!response.ok) throw new Error("Failed to send message");
+            if (!response.ok) {
+                const errorPayload = await response.json().catch(() => null);
+                const errorMessage =
+                    (errorPayload && typeof errorPayload.error === "string" && errorPayload.error) ||
+                    "Failed to send message";
+                throw new Error(errorMessage);
+            }
             const sourcesHeader = response.headers.get("x-doc-sources");
             let sources: SourceCitation[] = [];
             if (sourcesHeader) {
@@ -100,9 +115,13 @@ export function ChatInterface() {
             }
         } catch (error) {
             console.error(error);
+            const errorMessage =
+                error instanceof Error && error.message
+                    ? error.message
+                    : "Sorry, I encountered an error. Please try again.";
             setMessages((prev) => [
                 ...prev,
-                { role: "assistant", content: "Sorry, I encountered an error. Please try again." },
+                { role: "assistant", content: errorMessage },
             ]);
         } finally {
             setIsLoading(false);
@@ -167,7 +186,7 @@ export function ChatInterface() {
                                     <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-card/88">
                                         <Sparkles className="h-6 w-6" />
                                     </div>
-                                    <p className="text-center text-sm font-medium text-foreground">Ask anything about your document</p>
+                                    <p className="text-center text-sm font-medium text-foreground">Ask the chat about Faraz, your resume, or your projects.</p>
                                 </div>
                             )}
 

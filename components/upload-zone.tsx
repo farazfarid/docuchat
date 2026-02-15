@@ -8,9 +8,10 @@ import { cn } from "@/lib/utils";
 
 interface UploadZoneProps {
     onUploadComplete?: (filename: string) => void;
+    openAIApiKey?: string | null;
 }
 
-export function UploadZone({ onUploadComplete }: UploadZoneProps) {
+export function UploadZone({ onUploadComplete, openAIApiKey }: UploadZoneProps) {
     const [isUploading, setIsUploading] = useState(false);
     const [uploadStatus, setUploadStatus] = useState<"idle" | "success" | "error">("idle");
     const [fileName, setFileName] = useState<string | null>(null);
@@ -27,8 +28,14 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
         formData.append("file", file);
 
         try {
+            const headers: HeadersInit = {};
+            if (openAIApiKey) {
+                headers["x-openai-api-key"] = openAIApiKey;
+            }
+
             const response = await fetch("/api/upload", {
                 method: "POST",
+                headers,
                 body: formData,
             });
 
@@ -52,7 +59,7 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
         } finally {
             setIsUploading(false);
         }
-    }, [onUploadComplete]);
+    }, [onUploadComplete, openAIApiKey]);
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { chatModel } from "@/lib/ai";
+import { getChatModel } from "@/lib/ai";
 import { getVectorStore } from "@/lib/vector-store";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
     try {
         const body = (await req.json()) as { message?: string };
         const question = body.message?.trim();
+        const requestApiKey = req.headers.get("x-openai-api-key")?.trim() || undefined;
 
         if (!question) {
             return NextResponse.json(
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const vectorStore = await getVectorStore();
+        const vectorStore = await getVectorStore(requestApiKey);
         const retriever = vectorStore.asRetriever({ k: 6 });
         const relevantDocs = await retriever.invoke(question);
 
@@ -90,7 +91,7 @@ export async function POST(req: NextRequest) {
             ["human", "{question}"],
         ]);
 
-        const chain = prompt.pipe(chatModel).pipe(new StringOutputParser());
+        const chain = prompt.pipe(getChatModel(requestApiKey)).pipe(new StringOutputParser());
         const rawAnswer = await chain.invoke({
             context: formatContext(relevantDocs),
             question,
@@ -110,6 +111,12 @@ export async function POST(req: NextRequest) {
         });
     } catch (error) {
         console.error("Chat processing error:", error);
+        if (error instanceof Error && error.message.includes("OPENAI_API_KEY")) {
+            return NextResponse.json(
+                { error: "OpenAI key required. Set BYOK in the app or configure OPENAI_API_KEY on the server." },
+                { status: 400 }
+            );
+        }
         return NextResponse.json(
             { error: "Internal server error" },
             { status: 500 }
