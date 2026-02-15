@@ -3,15 +3,57 @@ import { chatModel } from "@/lib/ai";
 import { getVectorStore } from "@/lib/vector-store";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
-import { RunnableSequence, RunnableParallel } from "@langchain/core/runnables";
 import { Document } from "@langchain/core/documents";
+
+export const runtime = "nodejs";
+
+interface SourceCitation {
+    source: string;
+    chunk: number;
+    type: string;
+}
+
+const formatContext = (docs: Document[]): string =>
+    docs
+        .map((doc, index) => {
+            const source = typeof doc.metadata?.source === "string" ? doc.metadata.source : "unknown";
+            const chunk = typeof doc.metadata?.chunk === "number" ? doc.metadata.chunk : index;
+            return `Source: ${source} | Chunk: ${chunk}\n${doc.pageContent}`;
+        })
+        .join("\n\n---\n\n");
+
+const stripInlineCitations = (text: string): string =>
+    text
+        .replace(/\[source:\s*[^,\]]+,\s*chunk:\s*\d+\]/gi, "")
+        .replace(/[ \t]+\n/g, "\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+
+const extractSources = (docs: Document[]): SourceCitation[] => {
+    const seen = new Set<string>();
+    const sources: SourceCitation[] = [];
+
+    for (let index = 0; index < docs.length; index += 1) {
+        const doc = docs[index];
+        const source = typeof doc.metadata?.source === "string" ? doc.metadata.source : "Unknown file";
+        const chunk = typeof doc.metadata?.chunk === "number" ? doc.metadata.chunk : index;
+        const type = typeof doc.metadata?.type === "string" ? doc.metadata.type : "application/octet-stream";
+        const key = `${source}:${chunk}`;
+
+        if (seen.has(key)) continue;
+        seen.add(key);
+        sources.push({ source, chunk, type });
+    }
+
+    return sources;
+};
 
 export async function POST(req: NextRequest) {
     try {
-        const body = await req.json();
-        const { message } = body;
+        const body = (await req.json()) as { message?: string };
+        const question = body.message?.trim();
 
-        if (!message) {
+        if (!question) {
             return NextResponse.json(
                 { error: "No message provided" },
                 { status: 400 }
@@ -19,36 +61,53 @@ export async function POST(req: NextRequest) {
         }
 
         const vectorStore = await getVectorStore();
-        const retriever = vectorStore.asRetriever();
+        const retriever = vectorStore.asRetriever({ k: 6 });
+        const relevantDocs = await retriever.invoke(question);
+
+        if (relevantDocs.length === 0) {
+            return new Response(
+                "I couldn't find any indexed document context yet. Upload a document first and try again.",
+                {
+                    status: 200,
+                    headers: { "Content-Type": "text/plain; charset=utf-8" },
+                }
+            );
+        }
 
         const prompt = ChatPromptTemplate.fromMessages([
-            ["system", "You are a helpful assistant. Use the following context to answer the user's question. If you don't know the answer, just say that you don't know. \n\nContext:\n{context}"],
+            [
+                "system",
+                [
+                    "You are a document assistant.",
+                    "Answer only using the provided context.",
+                    "If the context is insufficient, say you don't know.",
+                    "Do not include inline citations or bracketed source labels in the response.",
+                    "",
+                    "Context:",
+                    "{context}",
+                ].join("\n"),
+            ],
             ["human", "{question}"],
         ]);
 
-        const chain = RunnableParallel.from({
-            context: async (input: { question: string }) => {
-                const relevantDocs = await retriever.invoke(input.question);
-                return relevantDocs.map((doc: any) => doc.pageContent).join("\n\n");
-            },
-            question: (input: { question: string }) => input.question,
-        })
-            .pipe(prompt)
-            .pipe(chatModel as any)
-            .pipe(new StringOutputParser() as any);
+        const chain = prompt.pipe(chatModel).pipe(new StringOutputParser());
+        const rawAnswer = await chain.invoke({
+            context: formatContext(relevantDocs),
+            question,
+        });
+        const answer = stripInlineCitations(rawAnswer);
+        const output =
+            answer ||
+            "I found relevant context but couldn't generate a clean response. Please ask a more specific question.";
 
-        const stream = await chain.stream({
-            question: message,
+        const headers = new Headers({
+            "Content-Type": "text/plain; charset=utf-8",
+            "X-Doc-Sources": encodeURIComponent(JSON.stringify(extractSources(relevantDocs))),
         });
 
-        return new Response(stream, {
-            headers: {
-                "Content-Type": "text/event-stream",
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-            },
+        return new Response(output, {
+            headers,
         });
-
     } catch (error) {
         console.error("Chat processing error:", error);
         return NextResponse.json(

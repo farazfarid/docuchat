@@ -5,10 +5,24 @@ if (!process.env.OPENAI_API_KEY) {
 }
 
 export const chatModel = new ChatOpenAI({
-  modelName: "gpt-4-turbo",
+  model: process.env.OPENAI_CHAT_MODEL ?? "gpt-4o-mini",
   temperature: 0,
 });
 
-export const embeddings = new OpenAIEmbeddings({
-  modelName: "text-embedding-3-small",
-});
+const embeddingModel = process.env.OPENAI_EMBEDDING_MODEL ?? "text-embedding-3-small";
+const embeddingClients = new Map<string, OpenAIEmbeddings>();
+
+export const getEmbeddings = (dimensions?: number) => {
+  const key = `${embeddingModel}:${dimensions ?? "default"}`;
+  const cached = embeddingClients.get(key);
+  if (cached) {
+    return cached;
+  }
+
+  const client = new OpenAIEmbeddings({
+    model: embeddingModel,
+    ...(dimensions && dimensions > 0 ? { dimensions } : {}),
+  });
+  embeddingClients.set(key, client);
+  return client;
+};

@@ -1,39 +1,62 @@
 import Tesseract from 'tesseract.js';
-// @ts-ignore
-import pdfParse from 'pdf-parse/lib/pdf-parse.js';
+import pdfParse from "pdf-parse/lib/pdf-parse.js";
+import mammoth from "mammoth";
+
+const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const MARKDOWN_MIME = "text/markdown";
+
+const detectMimeType = (file: File): string => {
+    if (file.type) return file.type;
+
+    const name = file.name.toLowerCase();
+    if (name.endsWith(".pdf")) return "application/pdf";
+    if (name.endsWith(".txt")) return "text/plain";
+    if (name.endsWith(".md")) return MARKDOWN_MIME;
+    if (name.endsWith(".docx")) return DOCX_MIME;
+    if (name.match(/\.(png|jpe?g|webp|bmp|gif|tiff?)$/)) return "image/*";
+
+    return "application/octet-stream";
+};
+
+const ensureText = (text: string, fileType: string): string => {
+    const normalized = text.trim();
+    if (!normalized) {
+        throw new Error(`No readable text found in ${fileType} file`);
+    }
+    return normalized;
+};
 
 export async function extractTextFromImage(buffer: Buffer): Promise<string> {
     const { data: { text } } = await Tesseract.recognize(
         buffer,
-        'eng',
-        { logger: m => console.log(m) }
+        "eng"
     );
-    return text;
+    return ensureText(text, "image");
 }
 
 export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
-    console.log("Starting PDF extraction with pdf-parse v1...");
-    try {
-        const data = await pdfParse(buffer);
-        console.log("PDF extraction successful");
-        return data.text;
-    } catch (error) {
-        console.error("PDF extraction failed:", error);
-        throw error;
-    }
+    const data = await pdfParse(buffer);
+    return ensureText(data.text, "PDF");
+}
+
+export async function extractTextFromDocx(buffer: Buffer): Promise<string> {
+    const { value } = await mammoth.extractRawText({ buffer });
+    return ensureText(value, "DOCX");
 }
 
 export async function processFile(file: File): Promise<string> {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    const type = file.type;
+    const type = detectMimeType(file);
 
-    if (type === 'application/pdf') {
+    if (type === "application/pdf") {
         return extractTextFromPdf(buffer);
-    } else if (type.startsWith('image/')) {
+    } else if (type === DOCX_MIME) {
+        return extractTextFromDocx(buffer);
+    } else if (type.startsWith("image/") || type === "image/*") {
         return extractTextFromImage(buffer);
-    } else if (type === 'text/plain') {
-        return buffer.toString('utf-8');
+    } else if (type === "text/plain" || type === MARKDOWN_MIME) {
+        return ensureText(buffer.toString("utf-8"), type);
     } else {
         throw new Error(`Unsupported file type: ${type}`);
     }

@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
-import { Upload, FileText, Loader2, CheckCircle2 } from "lucide-react";
+import { Upload, Loader2, CheckCircle2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 
@@ -59,6 +59,8 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
         accept: {
             'application/pdf': ['.pdf'],
             'text/plain': ['.txt', '.md'],
+            'text/markdown': ['.md'],
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
             'image/*': ['.png', '.jpg', '.jpeg']
         },
         maxFiles: 1,
@@ -68,11 +70,11 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
         <div
             {...getRootProps()}
             className={cn(
-                "w-full h-64 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all duration-200 outline-none",
+                "flex h-64 w-full cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed px-6 text-center transition-all duration-200 outline-none sm:h-72",
                 isDragActive
-                    ? "border-primary bg-primary/5 scale-[0.99]"
-                    : "border-border/50 hover:border-primary/50 hover:bg-secondary/20",
-                uploadStatus === "success" && "border-green-500/50 bg-green-500/5"
+                    ? "scale-[0.995] border-primary/70 bg-primary/8 shadow-[0_8px_24px_rgba(40,178,106,0.24)]"
+                    : "border-border/70 bg-card/35 hover:border-primary/55 hover:bg-card/55",
+                uploadStatus === "success" && "border-green-500/45 bg-green-500/8"
             )}
         >
             <input {...getInputProps()} />
@@ -85,8 +87,8 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
                         exit={{ scale: 0.8, opacity: 0 }}
                         className="flex flex-col items-center text-green-500"
                     >
-                        <CheckCircle2 className="w-10 h-10 mb-2" />
-                        <span className="font-medium">Imported {fileName}</span>
+                        <CheckCircle2 className="mb-2 h-10 w-10" />
+                        <span className="max-w-full truncate text-sm font-semibold sm:text-base">Imported {fileName}</span>
                     </motion.div>
                 ) : isUploading ? (
                     <motion.div
@@ -94,8 +96,8 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
                         animate={{ scale: 1, opacity: 1 }}
                         className="flex flex-col items-center text-primary"
                     >
-                        <Loader2 className="w-10 h-10 mb-2 animate-spin" />
-                        <span className="font-medium">Processing...</span>
+                        <Loader2 className="mb-2 h-10 w-10 animate-spin" />
+                        <span className="text-sm font-semibold sm:text-base">Processing...</span>
                     </motion.div>
                 ) : (
                     <motion.div
@@ -103,11 +105,11 @@ export function UploadZone({ onUploadComplete }: UploadZoneProps) {
                         animate={{ scale: 1, opacity: 1 }}
                         className="flex flex-col items-center text-muted-foreground"
                     >
-                        <div className="w-12 h-12 bg-secondary rounded-xl flex items-center justify-center mb-4 shadow-sm">
-                            <Upload className="w-6 h-6" />
+                        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl border border-border/70 bg-card/55">
+                            <Upload className="h-6 w-6" />
                         </div>
-                        <span className="font-medium text-lg text-foreground">Drop File Here</span>
-                        <span className="text-sm mt-1">PDF, TXT, MD, Images</span>
+                        <span className="text-base font-semibold text-foreground sm:text-lg">Drop File Here</span>
+                        <span className="mt-1 text-xs sm:text-sm">PDF, DOCX, TXT, MD, Images</span>
                     </motion.div>
                 )}
             </AnimatePresence>

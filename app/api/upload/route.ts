@@ -4,14 +4,23 @@ import { getVectorStore } from "@/lib/vector-store";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { Document } from "@langchain/core/documents";
 
+export const runtime = "nodejs";
+
 export async function POST(req: NextRequest) {
     try {
         const formData = await req.formData();
-        const file = formData.get("file") as File;
-
-        if (!file) {
+        const maybeFile = formData.get("file");
+        if (!(maybeFile instanceof File)) {
             return NextResponse.json(
                 { error: "No file provided" },
+                { status: 400 }
+            );
+        }
+
+        const file = maybeFile;
+        if (file.size === 0) {
+            return NextResponse.json(
+                { error: "Uploaded file is empty" },
                 { status: 400 }
             );
         }
@@ -29,22 +38,42 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        const normalizedText = text.trim();
+        if (!normalizedText) {
+            return NextResponse.json(
+                { error: "No readable text detected in the uploaded file." },
+                { status: 422 }
+            );
+        }
+
         // Split text into chunks
         const splitter = new RecursiveCharacterTextSplitter({
             chunkSize: 1000,
-            chunkOverlap: 200,
+            chunkOverlap: 150,
+            separators: ["\n\n", "\n", ". ", " ", ""],
         });
 
-        const output = await splitter.createDocuments([text]);
+        const chunks = await splitter.splitText(normalizedText);
+        if (chunks.length === 0) {
+            return NextResponse.json(
+                { error: "No processable chunks generated from file content." },
+                { status: 422 }
+            );
+        }
 
-        // Add metadata
-        const docs = output.map((doc) => ({
-            ...doc,
-            metadata: {
-                source: file.name,
-                type: file.type,
-            },
-        }));
+        const uploadedAt = new Date().toISOString();
+        const docs = chunks.map(
+            (chunk, index) =>
+                new Document({
+                    pageContent: chunk,
+                    metadata: {
+                        source: file.name,
+                        type: file.type || "application/octet-stream",
+                        chunk: index,
+                        uploadedAt,
+                    },
+                })
+        );
 
         // Store in Pinecone
         try {
@@ -61,7 +90,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
             message: "File processed and stored successfully",
             filename: file.name,
-            chunks: docs.length,
+            chunks: chunks.length,
         });
 
     } catch (error) {
