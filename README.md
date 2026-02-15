@@ -1,36 +1,75 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DocuChat
 
-## Getting Started
+DocuChat is a Next.js app for document-grounded chat. Upload files, index them in Pinecone, and ask questions against retrieved context.
 
-First, run the development server:
+## What We Built
+
+- Upload flow for PDF, DOCX, TXT, MD, and image files (PNG/JPG/JPEG)
+- Text extraction pipeline:
+  - PDF via `pdf-parse`
+  - DOCX via `mammoth`
+  - Images via `tesseract.js` OCR
+  - TXT/MD as UTF-8 text
+- Chunking and embedding pipeline with LangChain
+- Pinecone-backed vector retrieval
+- Chat endpoint grounded in retrieved chunks with source metadata
+- Sources panel in the UI showing file + chunk provenance
+- BYOK (Bring Your Own Key) in the UI via local storage
+
+## Stack
+
+- Next.js (App Router) + React + TypeScript
+- LangChain
+- Pinecone
+- OpenAI chat + embeddings
+- Tailwind CSS + Framer Motion
+
+## Requirements
+
+- Node.js 20+
+- A Pinecone project and index
+- OpenAI API key (server key and/or BYOK key in the UI)
+
+## Environment Variables
+
+Create `.env.local` in the project root:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+PINECONE_API_KEY=your_pinecone_api_key
+PINECONE_INDEX=docuchat-index
+PINECONE_NAMESPACE=optional_namespace
+
+OPENAI_API_KEY=your_openai_api_key
+OPENAI_CHAT_MODEL=gpt-4o-mini
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+OPENAI_EMBEDDING_DIMENSION=1536
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Notes:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `PINECONE_API_KEY` is required.
+- If `OPENAI_API_KEY` is not set on the server, users must set a BYOK key in the app before upload/chat will work.
+- `OPENAI_EMBEDDING_DIMENSION` should match your Pinecone index dimension when needed.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Run Locally
 
-## Learn More
+```bash
+npm install
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+Open [http://localhost:3000](http://localhost:3000).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Usage
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Open the `Upload` view and import a document.
+2. Wait for processing + indexing to complete.
+3. Open `Chat` and ask questions about the uploaded content.
+4. Optional: use the `BYOK` button in the header to store your OpenAI key in your browser.
 
-## Deploy on Vercel
+## Scripts
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `npm run dev` - start development server
+- `npm run build` - create production build
+- `npm run start` - run production server
+- `npm run lint` - run ESLint
